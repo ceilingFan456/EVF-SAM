@@ -8,3 +8,5 @@
 /model/segment_anything_2/sam2/_C.so
 /model/segment_anything_2/build
 /evf-sam2
+
+!install.sh

@@ -81,6 +81,7 @@ class EvfSam2Model(PreTrainedModel):
         ]
 
     def initialize_evf_modules(self, config):
+        print("Initializing EVF-SAM-2 model..., config is ", config)
         # SAM
         if config.sam_scale=="large":
             self.visual_model = build_sam2("sam2_hiera_l.yaml", self.vision_pretrained, device=None)

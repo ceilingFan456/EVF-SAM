@@ -5,15 +5,18 @@
 
 
 ## to run inference. 
+# python inference_robot.py  \
+#   --version YxZhang/evf-sam2 \
+#   --precision='fp16' \
+#   --model_type sam2   \
+#   --prompt "dummy"
+
+
 python inference_robot.py  \
-  --version YxZhang/evf-sam2 \
+  --version YxZhang/evf-sam2-multitask \
   --precision='fp16' \
   --model_type sam2   \
   --prompt "dummy"
 
 
-# python inference_robot.py  \
-#   --version YxZhang/evf-sam-multitask \
-#   --precision='fp16' \
-#   --model_type sam2   \
-#   --prompt "dummy"
+## if wanna use sam model, need to refer to evf_sam.py caz its sam scale is using huge. and it is not implemented for sam 2. 

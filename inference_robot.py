@@ -10,6 +10,8 @@ from torchvision import transforms
 from torchvision.transforms.functional import InterpolationMode
 from transformers import AutoTokenizer, BitsAndBytesConfig
 from model.segment_anything.utils.transforms import ResizeLongestSide
+from torch.profiler import profile, ProfilerActivity
+
 
 from pathlib import Path
 from tqdm import tqdm    
@@ -144,6 +146,11 @@ def init_models(args):
         model = model.cuda()
     model.eval()
 
+    # ---- simple total param count ----
+    total = sum(p.numel() for p in model.parameters())
+    trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Total params: {total/1e6:.2f}M | Trainable: {trainable/1e6:.2f}M")
+
     return tokenizer, model
 
 def main(args):
@@ -178,7 +185,7 @@ def main(args):
         exit()                                                        # [ADDED]
 
     # [ADDED] iterate with tqdm
-    for img_path in tqdm(all_imgs[:3], desc="Processing images", unit="img"):  # [ADDED]
+    for img_path in tqdm(all_imgs, desc="Processing images", unit="img"):  # [ADDED]
         # [ADDED] derive case name as 1st folder after image/
         try:                                                          # [ADDED]
             parts = img_path.resolve().relative_to(IN_ROOT.resolve()).parts  # [ADDED]
@@ -211,14 +218,23 @@ def main(args):
             input_ids = tokenizer(user_text, return_tensors="pt")["input_ids"].to(device=model.device)  # (kept API)
 
             # infer (UNCHANGED)
-            pred_mask = model.inference(
-                image_sam.unsqueeze(0),
-                image_beit.unsqueeze(0),
-                input_ids,
-                resize_list=[resize_shape],
-                original_size_list=original_size_list,
-                multimask_output=True,                                    # (kept)
-            )                                                          # (unchanged call)
+            with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+              record_shapes=True,
+              with_flops=True) as prof:
+                pred_mask = model.inference(
+                    image_sam.unsqueeze(0),
+                    image_beit.unsqueeze(0),
+                    input_ids,
+                    resize_list=[resize_shape],
+                    original_size_list=original_size_list,
+                    multimask_output=True,                                    # (kept)
+                )                                                          # (unchanged call)
+
+            print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))   
+            print(prof.key_averages().table(sort_by="flops"))
+            total_flops = sum([item.flops for item in prof.key_averages()])
+            print(f"Total FLOPs: {total_flops/1e9:.2f} GFLOPs")
+
             pred_mask = pred_mask.detach().cpu().numpy()[0]           # (kept)
             pred_mask = pred_mask > 0                                  # (kept)
 
